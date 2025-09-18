@@ -9,12 +9,13 @@ public partial class FormMain : Form
     private LanDiscoveryServer _discoveryServer;
     private readonly MMDeviceEnumerator _deviceEnumerator;
     private List<MMDevice> _availableDevices = new();
-    private List<ClientAudioPlayer> _clients = new();
-    private List<(ClientAudioPlayer client, MMDevice device)> _pairedClients = new();
+    private List<Player> _clients = new();
+    private List<(Player client, MMDevice device)> _pairedClients = new();
     private Dictionary<string, string> _discoveredClients = new();
+    private Dictionary<string, Player> _players = new();
 
     private MMDevice _selectedDevice;
-    private ClientAudioPlayer _selectedClient;
+    private Player _selectedClient;
 
     private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
@@ -26,7 +27,8 @@ public partial class FormMain : Form
         LoadPlaybackDevices();
 
         _audioServer = new AudioServer(cancellationTokenSource);
-        _audioServer.ClientConnected += AudioServer_ClientConnected;
+        _audioServer.OnClientConnected += AudioServer_ClientConnected;
+        _audioServer.OnReceivedData += AudioServer_ReceivedData;
         _audioServer.Start();
 
         _echoer = new Echoer(cancellationTokenSource);
@@ -94,7 +96,7 @@ public partial class FormMain : Form
             if (!_discoveredClients.TryGetValue(address, out var clientName))
                 clientName = "Unknown";
 
-            var player = new ClientAudioPlayer(GetDefaultDevice(), tcpClient, clientName);
+            var player = new TcpClientAudioPlayer(tcpClient, clientName, cancellationTokenSource.Token);
             _clients.Add(player);
 
             var btn = new Button
@@ -122,24 +124,55 @@ public partial class FormMain : Form
         }));
     }
 
-    private void RemovePair(ClientAudioPlayer player)
+    private void AudioServer_ReceivedData(EndPoint endpoint, byte[] data)
+    {
+        Invoke((Delegate)(() =>
+        {
+            var pointStr = endpoint.ToString();
+            var address = pointStr.Split(':')[0];
+            if (!_discoveredClients.TryGetValue(address, out var clientName))
+                clientName = "Unknown";
+
+            if (!_players.TryGetValue(address, out var player))
+            {
+                player = new Player(clientName, address);
+                _players[address] = player;
+                _clients.Add(player);
+                var btn = new Button
+                {
+                    Text = $"{clientName}\n{endpoint}",
+                    Tag = player,
+                    AutoSize = true,
+                    Margin = new Padding(3)
+                };
+                btn.Click += ClientButton_Click;
+                panelClients.Controls.Add(btn);
+                UpdateUI();
+            }
+
+            player.play(data);
+        }));
+    }
+
+    private void RemovePair(Player player)
     {
         foreach (var btn in panelPaired.Controls)
         {
             if (btn is Button button)
             {
-                var (client, device) = ((ClientAudioPlayer, MMDevice))button.Tag;
+                var (client, device) = ((Player, MMDevice))button.Tag;
                 if (client == player)
                 {
                     _pairedClients.Remove((client, device));
-                    _availableDevices.Add(device);
+                    if (!device.ID.Equals(GetDefaultDevice().ID))
+                        _availableDevices.Add(device);
                     return;
                 }
             }
         }
     }
 
-    private void RemoveClient(ClientAudioPlayer player)
+    private void RemoveClient(Player player)
     {
         foreach (var btn in panelClients.Controls)
         {
@@ -157,7 +190,7 @@ public partial class FormMain : Form
     private void ClientButton_Click(object sender, EventArgs e)
     {
         var btn = (Button)sender;
-        var client = (ClientAudioPlayer)btn.Tag;
+        var client = (Player)btn.Tag;
 
         if (_selectedClient == client)
         {
@@ -181,7 +214,8 @@ public partial class FormMain : Form
 
             _pairedClients.Add((_selectedClient, _selectedDevice));
             _clients.Remove(_selectedClient);
-            _availableDevices.Remove(_selectedDevice);
+            if (!_selectedDevice.ID.Equals(GetDefaultDevice().ID))
+                _availableDevices.Remove(_selectedDevice);
 
             _selectedClient = null;
             _selectedDevice = null;
@@ -203,7 +237,7 @@ public partial class FormMain : Form
         // Update Clients panel buttons
         foreach (Button btn in panelClients.Controls)
         {
-            var client = (ClientAudioPlayer)btn.Tag;
+            var client = (Player)btn.Tag;
             btn.BackColor = client == _selectedClient ? Color.LightBlue : Color.LightGray;
             btn.Enabled = _clients.Contains(client);
         }
@@ -214,7 +248,7 @@ public partial class FormMain : Form
         {
             var btn = new Button
             {
-                Text = $"{device.FriendlyName}\n{client.ClientName}\n{client.TcpClient.Client.RemoteEndPoint}",
+                Text = $"{device.FriendlyName}\n{client.ClientName}\n{client.ClientIpAddress}",
                 Tag = (client, device),
                 AutoSize = true,
                 Margin = new Padding(3)
@@ -227,7 +261,7 @@ public partial class FormMain : Form
     private void PairedButton_Click(object sender, EventArgs e)
     {
         var btn = (Button)sender;
-        var (client, device) = ((ClientAudioPlayer, MMDevice))btn.Tag;
+        var (client, device) = ((Player, MMDevice))btn.Tag;
 
         // Unpair
         _pairedClients.RemoveAll(p => p.client == client && p.device == device);
@@ -236,7 +270,7 @@ public partial class FormMain : Form
         _availableDevices.Add(device);
 
         // Switch client back to default device
-        client.UpdateOutputDevice(GetDefaultDevice());
+        client.UpdateOutputDevice(null);
 
         UpdateUI();
     }
