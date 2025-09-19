@@ -13,7 +13,7 @@ public class TcpClientAudioPlayer : Player
         Task.Run(() => ReceiveAudioAsync(token));
     }
 
-    private async Task ReceiveAudioAsync(CancellationToken token)
+    private async ValueTask ReceiveAudioAsync(CancellationToken token)
     {
         var buffer = new byte[4096];
         var stream = TcpClient.GetStream();

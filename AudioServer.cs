@@ -38,13 +38,13 @@ public class AudioServer
         udpTask = Task.Run(StartUdpServerAsync);
     }
 
-    private async Task AcceptClientsAsync()
+    private async ValueTask AcceptClientsAsync()
     {
         while (!cancellationTokenSource.Token.IsCancellationRequested)
         {
-            var tcpClient = await _listener.AcceptTcpClientAsync();
             try
             {
+                var tcpClient = await _listener.AcceptTcpClientAsync();
                 OnClientConnected?.Invoke(tcpClient);
             }
             catch (Exception e)
@@ -57,7 +57,7 @@ public class AudioServer
         _listener?.Stop();
     }
 
-    private async Task StartUdpServerAsync()
+    private async ValueTask StartUdpServerAsync()
     {
         while (!cancellationTokenSource.Token.IsCancellationRequested)
         {

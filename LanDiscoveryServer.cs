@@ -38,7 +38,7 @@ public class LanDiscoveryServer
         Task.Run(StartAsync);
     }
 
-    private async Task StartAsync()
+    private async ValueTask StartAsync()
     {
         Console.WriteLine($"[Discovery] Listening on UDP port {DiscoveryPort}");
         var cancellationToken = cancellationTokenSource.Token;
@@ -51,7 +51,7 @@ public class LanDiscoveryServer
         udpServer.Close();
     }
 
-    private async Task ProccessDiscoveryRequest(CancellationToken cancellationToken)
+    private async ValueTask ProccessDiscoveryRequest(CancellationToken cancellationToken)
     {
         UdpReceiveResult result;
         try

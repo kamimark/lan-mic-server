@@ -29,7 +29,7 @@ public class Echoer
         Task.Run(StartAsync);
     }
 
-    private async Task StartAsync()
+    private async ValueTask StartAsync()
     {
         var cancellationToken = cancellationTokenSource.Token;
 
@@ -41,7 +41,7 @@ public class Echoer
         udpServer.Close();
     }
 
-    private async Task ProccessPing(CancellationToken cancellationToken)
+    private async ValueTask ProccessPing(CancellationToken cancellationToken)
     {
         UdpReceiveResult result;
         try
