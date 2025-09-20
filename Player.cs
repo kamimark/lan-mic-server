@@ -27,7 +27,7 @@ public class Player
             _waveProvider = new BufferedWaveProvider(new WaveFormat(16000, 16, 1))
             {
                 DiscardOnBufferOverflow = true,
-                BufferDuration = TimeSpan.FromSeconds(5)
+                BufferDuration = TimeSpan.FromMilliseconds(200)
             };
 
             _waveOut = new WasapiOut(newDevice, AudioClientShareMode.Shared, false, 100);
